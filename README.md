@@ -71,7 +71,30 @@ chmod +x gradlew
 ./gradlew assembleDebug
 ```
 
-### 6. Find your APK
+### 6. Troubleshooting: AAPT2 Error on Linux ARM64
+If you get an error like: `AAPT2 aapt2-8.2.0-10154469-linux Daemon #0: ... Syntax error: Unterminated quoted string`, it means Gradle downloaded the `x86_64` version of `aapt2` because Google does not officially publish an ARM64 Linux binary for it on Maven. Linux tries to execute it natively and fails.
+
+**Option A: Use OS-provided AAPT2**
+1. Install native `aapt` from Ubuntu repositories:
+   ```bash
+   sudo apt update
+   sudo apt install aapt
+   ```
+2. Open `gradle.properties` in this project and uncomment the override line at the bottom:
+   ```properties
+   android.aapt2FromMavenOverride=/usr/bin/aapt2
+   ```
+
+**Option B: Use QEMU to run the x86_64 AAPT2 seamlessly (Recommended if Option A's AAPT2 is too old)**
+If Gradle complains that the system `aapt2` version is unsupported, you can configure your ARM64 system to transparently execute x86_64 binaries:
+```bash
+sudo dpkg --add-architecture amd64
+sudo apt update
+sudo apt install qemu-user-static binfmt-support libc6:amd64 libstdc++6:amd64 zlib1g:amd64
+```
+Once installed, your system will automatically run the x86_64 `aapt2` downloaded by Gradle without any project changes.
+
+### 7. Find your APK
 Once the build is completely successful, your generated APK will be available at:
 `app/build/outputs/apk/debug/app-debug.apk`
 
