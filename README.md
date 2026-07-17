@@ -95,6 +95,10 @@ sudo apt install qemu-user-static binfmt-support libc6:amd64 libstdc++6:amd64 zl
 Once installed, your system will automatically run the x86_64 `aapt2` downloaded by Gradle without any project changes.
 
 ### 7. Find your APK
+Once the build is completely successful, your generated APK will be available inside the app folder at:
+`app/build/outputs/apk/debug/app-debug.apk`
+
+You can use `scp`, a web server, or `adb` to transfer this APK to your Android device to test.
 Once the build is completely successful, your generated APK will be available at:
 `app/build/outputs/apk/debug/app-debug.apk`
 
