@@ -19,10 +19,10 @@ android {
             useSupportLibrary = true
         }
 
-        buildConfigField("String", "FIVE_URL", "\"${System.getenv("5url") ?: System.getenv("url") ?: System.getenv("FIVE_URL") ?: ""}\"")
-        buildConfigField("String", "FIVE_AUTH", "\"${System.getenv("5auth") ?: System.getenv("auth") ?: System.getenv("FIVE_AUTH") ?: ""}\"")
-        buildConfigField("String", "FIVE_ORIGIN", "\"${System.getenv("5origin") ?: System.getenv("origin") ?: System.getenv("FIVE_ORIGIN") ?: ""}\"")
-        buildConfigField("String", "FIVE_REFER", "\"${System.getenv("5refer") ?: System.getenv("refer") ?: System.getenv("FIVE_REFER") ?: ""}\"")
+        buildConfigField("String", "FIVE_URL", "\"${System.getenv("Five_url") ?: System.getenv("5url") ?: System.getenv("FIVE_URL") ?: ""}\"")
+        buildConfigField("String", "FIVE_AUTH", "\"${System.getenv("Five_auth") ?: System.getenv("5auth") ?: System.getenv("FIVE_AUTH") ?: ""}\"")
+        buildConfigField("String", "FIVE_ORIGIN", "\"${System.getenv("Five_origin") ?: System.getenv("5origin") ?: System.getenv("FIVE_ORIGIN") ?: ""}\"")
+        buildConfigField("String", "FIVE_REFER", "\"${System.getenv("Five_refer") ?: System.getenv("5refer") ?: System.getenv("FIVE_REFER") ?: ""}\"")
     }
 
     buildTypes {
