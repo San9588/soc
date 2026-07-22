@@ -31,6 +31,7 @@ fun ChartScreen(chartRepo: ChartRepository) {
     var selectedTimeframe by remember { mutableStateOf(prefs.getString("default_tf", "5m") ?: "5m") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     var lastDate by remember { mutableStateOf("0") }
     
     val scope = rememberCoroutineScope()
@@ -43,8 +44,11 @@ fun ChartScreen(chartRepo: ChartRepository) {
 
     fun loadData(append: Boolean = false) {
         scope.launch {
-            if (!append) isLoading = true
-            val newData = chartRepo.fetchChartData(selectedScrip, selectedTimeframe, if (append) lastDate else "0")
+            if (!append) {
+                isLoading = true
+                errorMessage = null
+            }
+            val (newData, error) = chartRepo.fetchChartData(selectedScrip, selectedTimeframe, if (append) lastDate else "0")
             if (newData != null) {
                 if (append) {
                     candles = candles + newData
@@ -52,9 +56,6 @@ fun ChartScreen(chartRepo: ChartRepository) {
                     candles = newData
                 }
                 if (newData.isNotEmpty()) {
-                    // Simple parse to get earlier date for next fetch
-                    // In real app, extract date like '2026-07-20' from last candle timestamp
-                    // Assuming format: "2026-07-22 09:15:00 AM" -> extract "20260722"
                     val oldestTimestamp = newData.last().timestamp
                     try {
                         val parts = oldestTimestamp.split(" ")[0].split("-")
@@ -63,6 +64,8 @@ fun ChartScreen(chartRepo: ChartRepository) {
                         }
                     } catch (e: Exception) {}
                 }
+            } else {
+                if (!append) errorMessage = error ?: "Unknown API Error"
             }
             if (!append) isLoading = false
         }
@@ -135,6 +138,22 @@ fun ChartScreen(chartRepo: ChartRepository) {
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
                 CircularProgressIndicator()
+            }
+        } else if (errorMessage != null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Text(
+                    text = errorMessage!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        } else if (candles.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Text(
+                    text = "No Chart Data Available",
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
         } else {
             CandlestickChart(

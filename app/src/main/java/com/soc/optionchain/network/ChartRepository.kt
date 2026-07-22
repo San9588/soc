@@ -20,8 +20,12 @@ data class ChartData(
 class ChartRepository(private val client: OkHttpClient, private val tokenManager: TokenManager) {
     private val gson = Gson()
 
-    suspend fun fetchChartData(scripCode: Long, timeFrame: String, lastDate: String = "0"): List<Candle>? = withContext(Dispatchers.IO) {
-        val token = tokenManager.getValidToken() ?: return@withContext null
+    suspend fun fetchChartData(scripCode: Long, timeFrame: String, lastDate: String = "0"): Pair<List<Candle>?, String?> = withContext(Dispatchers.IO) {
+        val token = tokenManager.getValidToken() 
+        if (token == null) {
+            return@withContext Pair(null, "Failed to fetch valid token")
+        }
+
         
         val url = "https://chartstt.5paisa.com/chart/historicalintradayV1/N/C/$scripCode/$timeFrame/$lastDate"
         
@@ -44,13 +48,16 @@ class ChartRepository(private val client: OkHttpClient, private val tokenManager
             .addHeader("user-agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36")
             .build()
 
+        var errorMsg: String? = null
+
         try {
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string()
+                    android.util.Log.d("ChartRepo", "Chart Data Response: $bodyStr")
                     val chartResp = gson.fromJson(bodyStr, ChartDataResponse::class.java)
                     
-                    chartResp.data?.candles?.mapNotNull { list ->
+                    val resultList = chartResp?.data?.candles?.mapNotNull { list ->
                         try {
                             Candle(
                                 timestamp = list[0].toString(),
@@ -64,13 +71,18 @@ class ChartRepository(private val client: OkHttpClient, private val tokenManager
                             null
                         }
                     }
+                    if (resultList == null) errorMsg = "Parsed chart data is null"
+                    return@withContext Pair(resultList, errorMsg)
                 } else {
-                    null
+                    errorMsg = "HTTP Error ${response.code}"
+                    android.util.Log.e("ChartRepo", errorMsg!!)
+                    return@withContext Pair(null, errorMsg)
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
-            null
+            android.util.Log.e("ChartRepo", "Network Exception", e)
+            errorMsg = e.message
+            return@withContext Pair(null, errorMsg)
         }
     }
 }

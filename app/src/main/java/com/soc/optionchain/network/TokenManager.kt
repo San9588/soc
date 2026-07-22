@@ -11,10 +11,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import com.soc.optionchain.BuildConfig
 
 data class TokenResponse(
-    val access_token: String,
-    val expires_in: Long,
-    val expires_on: Long,
-    val token_type: String
+    val access_token: String?,
+    val expires_in: Long?,
+    val expires_on: Long?,
+    val token_type: String?
 )
 
 class TokenManager(context: Context, private val client: OkHttpClient) {
@@ -61,16 +61,25 @@ class TokenManager(context: Context, private val client: OkHttpClient) {
         try {
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string()
-                    val tokenResp = gson.fromJson(bodyStr, TokenResponse::class.java)
-                    
-                    prefs.edit()
-                        .putString("access_token", tokenResp.access_token)
-                        .putLong("expires_on", tokenResp.expires_on)
-                        .apply()
-                        
-                    tokenResp.access_token
+                    val bodyStr = response.body?.string() ?: ""
+                    android.util.Log.d("TokenManager", "Response: $bodyStr")
+                    try {
+                        val tokenResp = gson.fromJson(bodyStr, TokenResponse::class.java)
+                        if (tokenResp?.access_token != null) {
+                            prefs.edit()
+                                .putString("access_token", tokenResp.access_token)
+                                .putLong("expires_on", tokenResp.expires_on ?: 0)
+                                .apply()
+                            tokenResp.access_token
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("TokenManager", "JSON Parse Error", e)
+                        null
+                    }
                 } else {
+                    android.util.Log.e("TokenManager", "HTTP Error: ${response.code}")
                     null
                 }
             }
