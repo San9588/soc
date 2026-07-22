@@ -18,6 +18,11 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "FIVE_URL", "\"${System.getenv("5url") ?: System.getenv("url") ?: System.getenv("FIVE_URL") ?: ""}\"")
+        buildConfigField("String", "FIVE_AUTH", "\"${System.getenv("5auth") ?: System.getenv("auth") ?: System.getenv("FIVE_AUTH") ?: ""}\"")
+        buildConfigField("String", "FIVE_ORIGIN", "\"${System.getenv("5origin") ?: System.getenv("origin") ?: System.getenv("FIVE_ORIGIN") ?: ""}\"")
+        buildConfigField("String", "FIVE_REFER", "\"${System.getenv("5refer") ?: System.getenv("refer") ?: System.getenv("FIVE_REFER") ?: ""}\"")
     }
 
     buildTypes {
@@ -38,6 +43,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
