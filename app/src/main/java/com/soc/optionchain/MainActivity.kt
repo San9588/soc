@@ -34,18 +34,18 @@ class MainActivity : ComponentActivity() {
     private val wsClient = WebsocketClient()
     private val apiClient = HistoryApiClient()
     
-    private lateinit val tokenManager: TokenManager
-    private lateinit val chartRepo: ChartRepository
+    private var tokenManager: TokenManager? = null
+    private var chartRepo: ChartRepository? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         tokenManager = TokenManager(this, client)
-        chartRepo = ChartRepository(client, tokenManager)
+        chartRepo = ChartRepository(client, tokenManager!!)
         
         setContent {
             OptionChainTheme {
-                MainScreen(wsClient, apiClient, chartRepo)
+                MainScreen(wsClient, apiClient, chartRepo!!)
             }
         }
     }
@@ -71,7 +71,7 @@ fun MainScreen(wsClient: WebsocketClient, apiClient: HistoryApiClient, chartRepo
             ModalDrawerSheet {
                 Spacer(Modifier.height(12.dp))
                 Text("soc", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleLarge)
-                HorizontalDivider()
+                Divider()
                 
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
