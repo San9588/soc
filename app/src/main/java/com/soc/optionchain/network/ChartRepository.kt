@@ -57,7 +57,7 @@ class ChartRepository(private val client: OkHttpClient, private val tokenManager
                     android.util.Log.d("ChartRepo", "Chart Data Response: $bodyStr")
                     val chartResp = gson.fromJson(bodyStr, ChartDataResponse::class.java)
                     
-                    val resultList = chartResp?.data?.candles?.mapNotNull { list ->
+                    val resultList = chartResp?.data?.candles?.reversed()?.mapNotNull { list ->
                         try {
                             Candle(
                                 timestamp = list[0].toString(),
