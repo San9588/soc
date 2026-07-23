@@ -34,7 +34,6 @@ fun ChartScreen(chartRepo: ChartRepository) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("soc_prefs", Context.MODE_PRIVATE)
 
-    // Data State
     var selectedScrip by remember { mutableStateOf(999920000L) }
     var selectedTimeframe by remember { mutableStateOf(prefs.getString("default_tf", "5m") ?: "5m") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
@@ -42,7 +41,6 @@ fun ChartScreen(chartRepo: ChartRepository) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lastDate by remember { mutableStateOf("0") }
 
-    // Settings State
     var showBottomSheet by remember { mutableStateOf(false) }
     var showVGrid by remember { mutableStateOf(true) }
     var showHGrid by remember { mutableStateOf(true) }
@@ -118,10 +116,10 @@ fun ChartScreen(chartRepo: ChartRepository) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF131722)) // TradingView Dark Background
+                .background(Color(0xFF131722)) 
         ) {
             if (isLoading) {
-                Text("Loading chart...", color = Color.White, modifier = Modifier.align(Alignment.Center))
+                Text("Loading...", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.align(Alignment.Center), color = Color.White)
             } else if (errorMessage != null) {
                 Text(errorMessage!!, color = Color.Red, modifier = Modifier.align(Alignment.Center))
             } else if (candles.isNotEmpty()) {
@@ -214,7 +212,6 @@ fun ChartTopBar(
 }
 
 @Composable
-@Composable
 fun InteractiveCandlestickChart(
     candles: List<Candle>,
     bullishColorHex: String,
@@ -239,22 +236,21 @@ fun InteractiveCandlestickChart(
     val bearishColor = try { Color(android.graphics.Color.parseColor(bearishColorHex)) } catch(e: Exception) { Color.Red }
     val gridColor = Color.LightGray.copy(alpha = gridOpacity)
     
-        val textPaint = remember {
-            android.graphics.Paint().apply {
-                color = android.graphics.Color.parseColor("#787B86")
-                textSize = 26f
-                isAntiAlias = true
-            }
+    val textPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.parseColor("#787B86")
+            textSize = 26f
+            isAntiAlias = true
         }
-        
-        val dateTextPaint = remember {
-            android.graphics.Paint().apply {
-                color = android.graphics.Color.parseColor("#787B86")
-                textSize = 24f
-                isAntiAlias = true
-            }
+    }
+    
+    val dateTextPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.parseColor("#787B86")
+            textSize = 24f
+            isAntiAlias = true
         }
-
+    }
     
     val tagTextPaint = remember {
         android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = 26f; isAntiAlias = true }
@@ -312,49 +308,35 @@ fun InteractiveCandlestickChart(
         val minPrice = midPrice - (zoomedRange / 2f)
         val priceRange = maxPrice - minPrice
 
-        fun getY(price: Double): Float {
-            return size.height - ((price.toFloat() - minPrice) / priceRange) * size.height
+        fun getY(price: Float): Float {
+            return size.height - ((price - minPrice) / priceRange) * size.height
         }
         
         fun getPriceFromY(y: Float): Float {
             return minPrice + ((size.height - y) / size.height) * priceRange
         }
 
-        // Draw Grid and Price Axis
         if (showHGrid) {
-            val roughInterval = (priceRange / 8.0).toDouble()
-            val magnitude = kotlin.math.pow(10.0, kotlin.math.floor(kotlin.math.log10(roughInterval)))
-            val normalized = roughInterval / magnitude
-            val niceNormalized = when {
-                normalized < 1.5 -> 1.0
-                normalized < 3.5 -> 2.0
-                normalized < 7.5 -> 5.0
-                else -> 10.0
-            }
-            val interval = niceNormalized * magnitude
-
-            val firstGridPrice = kotlin.math.ceil((minPrice.toDouble() / interval).toDouble()) * interval
-            var currentGridPrice = firstGridPrice
-            while (currentGridPrice <= maxPrice.toDouble()) {
-                val y = getY(currentGridPrice.toFloat().toDouble())
+            // Simplified grid line rendering to avoid Kotlin Double/Float operator ambiguities completely
+            val linesCount = 8
+            val priceStep = priceRange / linesCount
+            for (i in 0..linesCount) {
+                val currentGridPrice = minPrice + (i * priceStep)
+                val y = getY(currentGridPrice)
                 drawLine(gridColor, Offset(0f, y), Offset(drawingAreaWidth, y), strokeWidth = 1f)
                 
-                val label = if (interval < 1.0) String.format("%.2f", currentGridPrice) else String.format("%.1f", currentGridPrice)
+                val label = String.format("%.1f", currentGridPrice)
                 drawContext.canvas.nativeCanvas.drawText(
                     label,
                     drawingAreaWidth + 10f,
                     y - ((textPaint.descent() + textPaint.ascent()) / 2),
                     textPaint
                 )
-                currentGridPrice = currentGridPrice + interval
             }
         }
         
         drawLine(Color.Gray, Offset(drawingAreaWidth, 0f), Offset(drawingAreaWidth, size.height), strokeWidth = 2f)
 
-        // Draw Date Labels on bottom
-        val bottomAxisHeight = 40f
-        
         visibleCandles.forEachIndexed { i, candle ->
             val indexInList = startIndex + i
             val xCenter = drawingAreaWidth - ((indexInList * itemWidth) - offsetX) - (currentCandleWidth / 2)
@@ -363,10 +345,7 @@ fun InteractiveCandlestickChart(
                 drawLine(gridColor, Offset(xCenter, 0f), Offset(xCenter, size.height), strokeWidth = 1f)
             }
 
-            // Draw Date string (e.g. "09:15" or "Jul 22") every ~10 visible candles to avoid clutter
             if (i % 10 == 0) {
-                // The timestamp format is "2026-07-22 09:15:00 AM"
-                // Let's show "22 Jul 09:15"
                 try {
                     val dtParts = candle.timestamp.split(" ")
                     if (dtParts.size >= 2) {
@@ -385,21 +364,16 @@ fun InteractiveCandlestickChart(
                 } catch(e: Exception) {}
             }
 
-            val yOpen = getY(candle.open)
-            val yClose = getY(candle.close)
-            val yHigh = getY(candle.high)
-            val yLow = getY(candle.low)
+            val yOpen = getY(candle.open.toFloat())
+            val yClose = getY(candle.close.toFloat())
+            val yHigh = getY(candle.high.toFloat())
+            val yLow = getY(candle.low.toFloat())
 
             val color = if (candle.close >= candle.open) bullishColor else bearishColor
 
             drawLine(color, Offset(xCenter, yHigh), Offset(xCenter, yLow), strokeWidth = 2f * scaleX)
             val top = min(yOpen, yClose)
             val bottom = max(yOpen, yClose)
-            
-            // Limit drawing size to avoid bleeding into X-Axis 
-            // We just let the grid lines and candles draw up to size.height - bottomAxisHeight ideally,
-            // but for simplicity we'll just let them draw over.
-            
             drawRect(color, topLeft = Offset(xCenter - (currentCandleWidth / 2), top), size = Size(currentCandleWidth, max(bottom - top, 2f)))
         }
 
@@ -430,6 +404,7 @@ fun InteractiveCandlestickChart(
         }
     }
 }
+
 @Composable
 fun SettingsPanel(
     showVGrid: Boolean, onShowVGridChange: (Boolean) -> Unit,
