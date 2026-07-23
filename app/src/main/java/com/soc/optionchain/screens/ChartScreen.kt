@@ -137,7 +137,8 @@ fun ChartScreen(chartRepo: ChartRepository) {
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                CircularProgressIndicator()
+                // Fixed Material 3 Compose bug on Android 14+ by skipping animation/CircularProgressIndicator
+                Text("Loading...", style = MaterialTheme.typography.bodyLarge)
             }
         } else if (errorMessage != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
