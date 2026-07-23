@@ -3,16 +3,22 @@ package com.soc.optionchain.screens
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -28,20 +34,23 @@ fun ChartScreen(chartRepo: ChartRepository) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("soc_prefs", Context.MODE_PRIVATE)
 
-    var selectedScrip by remember { mutableStateOf(999920000L) } // Nifty Default
+    // Data State
+    var selectedScrip by remember { mutableStateOf(999920000L) }
     var selectedTimeframe by remember { mutableStateOf(prefs.getString("default_tf", "5m") ?: "5m") }
     var candles by remember { mutableStateOf<List<Candle>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lastDate by remember { mutableStateOf("0") }
-    
-    val scope = rememberCoroutineScope()
 
-    // Colors
-    val bullishColorHex = prefs.getString("bullish_color", "#00FF00") ?: "#00FF00"
-    val bearishColorHex = prefs.getString("bearish_color", "#FF0000") ?: "#FF0000"
-    val bullishColor = Color(android.graphics.Color.parseColor(bullishColorHex))
-    val bearishColor = Color(android.graphics.Color.parseColor(bearishColorHex))
+    // Settings State
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var showVGrid by remember { mutableStateOf(true) }
+    var showHGrid by remember { mutableStateOf(true) }
+    var gridOpacity by remember { mutableStateOf(0.3f) }
+    var bullishColorHex by remember { mutableStateOf(prefs.getString("bullish_color", "#00FF00") ?: "#00FF00") }
+    var bearishColorHex by remember { mutableStateOf(prefs.getString("bearish_color", "#FF0000") ?: "#FF0000") }
+
+    val scope = rememberCoroutineScope()
 
     fun loadData(append: Boolean = false) {
         scope.launch {
@@ -77,182 +86,254 @@ fun ChartScreen(chartRepo: ChartRepository) {
         loadData(append = false)
     }
 
-    var expandedScrip by remember { mutableStateOf(false) }
-    var expandedTf by remember { mutableStateOf(false) }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            ExposedDropdownMenuBox(
-                expanded = expandedScrip,
-                onExpandedChange = { expandedScrip = !expandedScrip }
+    Scaffold(
+        topBar = {
+            ChartTopBar(
+                selectedScrip = selectedScrip,
+                onScripChange = { selectedScrip = it },
+                selectedTimeframe = selectedTimeframe,
+                onTimeframeChange = { selectedTimeframe = it }
+            )
+        },
+        bottomBar = {
+            BottomAppBar(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.height(56.dp)
             ) {
-                OutlinedTextField(
-                    value = if (selectedScrip == 999920000L) "Nifty" else "BankNifty",
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier
-                        .menuAnchor()
-                        .weight(1f)
-                        .padding(end = 4.dp),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedScrip) }
-                )
-                ExposedDropdownMenu(
-                    expanded = expandedScrip,
-                    onDismissRequest = { expandedScrip = false }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    DropdownMenuItem(text = { Text("Nifty") }, onClick = { selectedScrip = 999920000L; expandedScrip = false })
-                    DropdownMenuItem(text = { Text("BankNifty") }, onClick = { selectedScrip = 999920005L; expandedScrip = false })
-                }
-            }
-
-            ExposedDropdownMenuBox(
-                expanded = expandedTf,
-                onExpandedChange = { expandedTf = !expandedTf }
-            ) {
-                OutlinedTextField(
-                    value = selectedTimeframe,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier
-                        .menuAnchor()
-                        .weight(1f)
-                        .padding(start = 4.dp),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTf) }
-                )
-                ExposedDropdownMenu(
-                    expanded = expandedTf,
-                    onDismissRequest = { expandedTf = false }
-                ) {
-                    val tfs = listOf("1m", "5m", "15m", "30m", "1h", "4h", "1d")
-                    tfs.forEach { tf ->
-                        DropdownMenuItem(text = { Text(tf) }, onClick = { selectedTimeframe = tf; expandedTf = false })
+                    TextButton(onClick = { showBottomSheet = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Chart Settings")
                     }
                 }
             }
         }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(Color(0xFF131722)) // TradingView Dark Background
+        ) {
+            if (isLoading) {
+                Text("Loading chart...", color = Color.White, modifier = Modifier.align(Alignment.Center))
+            } else if (errorMessage != null) {
+                Text(errorMessage!!, color = Color.Red, modifier = Modifier.align(Alignment.Center))
+            } else if (candles.isNotEmpty()) {
+                InteractiveCandlestickChart(
+                    candles = candles,
+                    bullishColorHex = bullishColorHex,
+                    bearishColorHex = bearishColorHex,
+                    showVGrid = showVGrid,
+                    showHGrid = showHGrid,
+                    gridOpacity = gridOpacity,
+                    onLoadMore = { loadData(append = true) },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text("No data available", color = Color.White, modifier = Modifier.align(Alignment.Center))
+            }
+        }
+    }
 
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                // Fixed Material 3 Compose bug on Android 14+ by skipping animation/CircularProgressIndicator
-                Text("Loading...", style = MaterialTheme.typography.bodyLarge)
-            }
-        } else if (errorMessage != null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        } else if (candles.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                Text(
-                    text = "No Chart Data Available",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        } else {
-            CandlestickChart(
-                candles = candles,
-                bullishColor = bullishColor,
-                bearishColor = bearishColor,
-                onLoadMore = { loadData(append = true) },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.background)
+    if (showBottomSheet) {
+        ModalBottomSheet(onDismissRequest = { showBottomSheet = false }) {
+            SettingsPanel(
+                showVGrid = showVGrid, onShowVGridChange = { showVGrid = it },
+                showHGrid = showHGrid, onShowHGridChange = { showHGrid = it },
+                gridOpacity = gridOpacity, onGridOpacityChange = { gridOpacity = it },
+                bullishColorHex = bullishColorHex, onBullishChange = {
+                    bullishColorHex = it
+                    prefs.edit().putString("bullish_color", it).apply()
+                },
+                bearishColorHex = bearishColorHex, onBearishChange = {
+                    bearishColorHex = it
+                    prefs.edit().putString("bearish_color", it).apply()
+                }
             )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CandlestickChart(
+fun ChartTopBar(
+    selectedScrip: Long, onScripChange: (Long) -> Unit,
+    selectedTimeframe: String, onTimeframeChange: (String) -> Unit
+) {
+    var expandedScrip by remember { mutableStateOf(false) }
+    var expandedTf by remember { mutableStateOf(false) }
+    val timeframes = listOf("3m", "5m", "15m", "30m", "1h", "2h", "4h", "1d")
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box {
+                Text(
+                    text = if (selectedScrip == 999920000L) "NIFTY" else "BANKNIFTY",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable { expandedScrip = true }
+                        .padding(8.dp)
+                )
+                DropdownMenu(expanded = expandedScrip, onDismissRequest = { expandedScrip = false }) {
+                    DropdownMenuItem(text = { Text("NIFTY") }, onClick = { onScripChange(999920000L); expandedScrip = false })
+                    DropdownMenuItem(text = { Text("BANKNIFTY") }, onClick = { onScripChange(999920005L); expandedScrip = false })
+                }
+            }
+
+            Box {
+                Text(
+                    text = selectedTimeframe,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { expandedTf = true }
+                        .padding(8.dp)
+                )
+                DropdownMenu(expanded = expandedTf, onDismissRequest = { expandedTf = false }) {
+                    timeframes.forEach { tf ->
+                        DropdownMenuItem(text = { Text(tf) }, onClick = { onTimeframeChange(tf); expandedTf = false })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InteractiveCandlestickChart(
     candles: List<Candle>,
-    bullishColor: Color,
-    bearishColor: Color,
+    bullishColorHex: String,
+    bearishColorHex: String,
+    showVGrid: Boolean,
+    showHGrid: Boolean,
+    gridOpacity: Float,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (candles.isEmpty()) return
-
     var offsetX by remember { mutableStateOf(0f) }
-    val candleWidth = 20f
+    var scaleX by remember { mutableStateOf(1f) } 
+    var scaleY by remember { mutableStateOf(1f) } 
+    
+    var crosshairPos by remember { mutableStateOf<Offset?>(null) }
+    
+    val baseCandleWidth = 20f
     val spacing = 4f
+    val rightAxisWidth = 140f
+
+    val bullishColor = try { Color(android.graphics.Color.parseColor(bullishColorHex)) } catch(e: Exception) { Color.Green }
+    val bearishColor = try { Color(android.graphics.Color.parseColor(bearishColorHex)) } catch(e: Exception) { Color.Red }
+    val gridColor = Color.LightGray.copy(alpha = gridOpacity)
+    
+    val textPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.LTGRAY
+            textSize = 28f
+            isAntiAlias = true
+        }
+    }
+    
+    val tagTextPaint = remember {
+        android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = 28f; isAntiAlias = true }
+    }
 
     Canvas(
-        modifier = modifier.pointerInput(Unit) {
-            detectDragGestures(
-                onDragEnd = {
-                    // Check if we swiped past the end to load more
-                    val totalWidth = candles.size * (candleWidth + spacing)
-                    if (offsetX > totalWidth - size.width) {
-                        onLoadMore()
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    if (zoom != 1f) {
+                        scaleX = max(0.2f, min(scaleX * zoom, 5f))
+                    }
+                    offsetX += pan.x
+                    if (offsetX < 0f) offsetX = 0f
+                    
+                    if (kotlin.math.abs(pan.y) > kotlin.math.abs(pan.x) * 2) {
+                        scaleY = max(0.5f, min(scaleY * (1f + pan.y * 0.005f), 3f))
                     }
                 }
-            ) { change, dragAmount ->
-                change.consume()
-                offsetX += dragAmount.x
-                // Prevent scrolling too far right (into the future)
-                if (offsetX < 0f) offsetX = 0f
             }
-        }
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { crosshairPos = it },
+                    onDrag = { change, _ -> crosshairPos = change.position },
+                    onDragEnd = { crosshairPos = null },
+                    onDragCancel = { crosshairPos = null }
+                )
+            }
     ) {
-        val visibleCandlesCount = (size.width / (candleWidth + spacing)).toInt() + 2
-        val startIndex = max(0, (offsetX / (candleWidth + spacing)).toInt())
+        val currentCandleWidth = baseCandleWidth * scaleX
+        val currentSpacing = spacing * scaleX
+        val itemWidth = currentCandleWidth + currentSpacing
+        
+        val drawingAreaWidth = size.width - rightAxisWidth
+        
+        val visibleCandlesCount = (drawingAreaWidth / itemWidth).toInt() + 2
+        val startIndex = max(0, (offsetX / itemWidth).toInt())
         val endIndex = min(candles.size - 1, startIndex + visibleCandlesCount)
 
         if (startIndex > candles.size - 1) return@Canvas
+        
+        if (endIndex >= candles.size - 5) {
+            onLoadMore()
+        }
 
         val visibleCandles = candles.subList(startIndex, endIndex + 1)
         
-        val maxPrice = visibleCandles.maxOfOrNull { it.high }?.toFloat() ?: 1f
-        val minPrice = visibleCandles.minOfOrNull { it.low }?.toFloat() ?: 0f
-        val priceRange = max(maxPrice - minPrice, 1f)
+        val rawMaxPrice = visibleCandles.maxOfOrNull { it.high }?.toFloat() ?: 1f
+        val rawMinPrice = visibleCandles.minOfOrNull { it.low }?.toFloat() ?: 0f
+        val rawRange = max(rawMaxPrice - rawMinPrice, 1f)
+        
+        val midPrice = rawMinPrice + (rawRange / 2f)
+        val zoomedRange = rawRange / scaleY
+        val maxPrice = midPrice + (zoomedRange / 2f)
+        val minPrice = midPrice - (zoomedRange / 2f)
+        val priceRange = maxPrice - minPrice
 
         fun getY(price: Double): Float {
             return size.height - ((price.toFloat() - minPrice) / priceRange) * size.height
         }
+        
+        fun getPriceFromY(y: Float): Float {
+            return minPrice + ((size.height - y) / size.height) * priceRange
+        }
 
-        // Draw grid lines
-        val numVerticalLines = 5
-        for (i in 0..numVerticalLines) {
-            val y = i * (size.height / numVerticalLines)
-            drawLine(
-                color = Color.DarkGray.copy(alpha = 0.5f),
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = 1f
-            )
-            
-            // Draw price labels on the right edge
-            if (i < numVerticalLines) { // Skip bottom-most label to avoid overlap
-                val priceLabel = maxPrice - (i * (priceRange / numVerticalLines))
-                val labelText = String.format("%.1f", priceLabel)
-                android.graphics.Paint().apply {
-                    color = android.graphics.Color.LTGRAY
-                    textSize = 30f
-                }.let { paint ->
-                    drawContext.canvas.nativeCanvas.drawText(
-                        labelText,
-                        size.width - 120f,
-                        y - 10f,
-                        paint
-                    )
-                }
+        if (showHGrid) {
+            val hLines = 6
+            for (i in 0..hLines) {
+                val y = i * (size.height / hLines)
+                drawLine(gridColor, Offset(0f, y), Offset(drawingAreaWidth, y), strokeWidth = 1f)
+                val priceLabel = getPriceFromY(y)
+                drawContext.canvas.nativeCanvas.drawText(
+                    String.format("%.1f", priceLabel),
+                    size.width - rightAxisWidth + 10f,
+                    y + 10f,
+                    textPaint
+                )
             }
         }
+        
+        drawLine(Color.Gray, Offset(drawingAreaWidth, 0f), Offset(drawingAreaWidth, size.height), strokeWidth = 2f)
 
         visibleCandles.forEachIndexed { i, candle ->
             val indexInList = startIndex + i
-            // X goes from right to left: Newest candle (index 0) is at the right edge
-            val xCenter = size.width - ((indexInList * (candleWidth + spacing)) - offsetX) - (candleWidth / 2)
+            val xCenter = drawingAreaWidth - ((indexInList * itemWidth) - offsetX) - (currentCandleWidth / 2)
+
+            if (showVGrid && i % 5 == 0) {
+                drawLine(gridColor, Offset(xCenter, 0f), Offset(xCenter, size.height), strokeWidth = 1f)
+            }
 
             val yOpen = getY(candle.open)
             val yClose = getY(candle.close)
@@ -261,23 +342,78 @@ fun CandlestickChart(
 
             val color = if (candle.close >= candle.open) bullishColor else bearishColor
 
-            // Draw wick
-            drawLine(
-                color = color,
-                start = Offset(xCenter, yHigh),
-                end = Offset(xCenter, yLow),
-                strokeWidth = 2f
-            )
-
-            // Draw body
+            drawLine(color, Offset(xCenter, yHigh), Offset(xCenter, yLow), strokeWidth = 2f * scaleX)
             val top = min(yOpen, yClose)
             val bottom = max(yOpen, yClose)
+            drawRect(color, topLeft = Offset(xCenter - (currentCandleWidth / 2), top), size = Size(currentCandleWidth, max(bottom - top, 2f)))
+        }
+
+        crosshairPos?.let { pos ->
+            val chX = min(pos.x, drawingAreaWidth)
+            val chY = max(0f, min(pos.y, size.height))
+            
+            val dashedEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+            
+            drawLine(Color.White, Offset(chX, 0f), Offset(chX, size.height), strokeWidth = 2f, pathEffect = dashedEffect)
+            drawLine(Color.White, Offset(0f, chY), Offset(size.width, chY), strokeWidth = 2f, pathEffect = dashedEffect)
+            
+            val priceAtCrosshair = getPriceFromY(chY)
+            val tagText = String.format("%.2f", priceAtCrosshair)
             
             drawRect(
-                color = color,
-                topLeft = Offset(xCenter - (candleWidth / 2), top),
-                size = Size(candleWidth, max(bottom - top, 2f)) // Ensure min height of 2px
+                color = Color.DarkGray,
+                topLeft = Offset(drawingAreaWidth, chY - 20f),
+                size = Size(rightAxisWidth, 40f)
             )
+            drawContext.canvas.nativeCanvas.drawText(
+                tagText,
+                drawingAreaWidth + 10f,
+                chY + 10f,
+                tagTextPaint
+            )
+        }
+    }
+}
+
+@Composable
+fun SettingsPanel(
+    showVGrid: Boolean, onShowVGridChange: (Boolean) -> Unit,
+    showHGrid: Boolean, onShowHGridChange: (Boolean) -> Unit,
+    gridOpacity: Float, onGridOpacityChange: (Float) -> Unit,
+    bullishColorHex: String, onBullishChange: (String) -> Unit,
+    bearishColorHex: String, onBearishChange: (String) -> Unit
+) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        item {
+            Text("Candle Appearance", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = bullishColorHex, onValueChange = onBullishChange,
+                label = { Text("Bullish Color (Hex)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = bearishColorHex, onValueChange = onBearishChange,
+                label = { Text("Bearish Color (Hex)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        item {
+            Text("Axis / Grid Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Show Vertical Grids", modifier = Modifier.weight(1f))
+                Switch(checked = showVGrid, onCheckedChange = onShowVGridChange)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Show Horizontal Grids", modifier = Modifier.weight(1f))
+                Switch(checked = showHGrid, onCheckedChange = onShowHGridChange)
+            }
+            Text("Grid Opacity: ${(gridOpacity * 100).toInt()}%")
+            Slider(value = gridOpacity, onValueChange = onGridOpacityChange, valueRange = 0f..1f)
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
