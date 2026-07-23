@@ -4,6 +4,9 @@ import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.Date
 import okhttp3.Request
 
 data class ChartDataResponse(
@@ -57,20 +60,31 @@ class ChartRepository(private val client: OkHttpClient, private val tokenManager
                     android.util.Log.d("ChartRepo", "Chart Data Response: $bodyStr")
                     val chartResp = gson.fromJson(bodyStr, ChartDataResponse::class.java)
                     
-                    val resultList = chartResp?.data?.candles?.reversed()?.mapNotNull { list ->
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd hh:mm:ss a", Locale.ENGLISH)
+                    
+                    var resultList = chartResp?.data?.candles?.mapNotNull { list ->
                         try {
+                            val timestampStr = list[0].toString()
+                            val timeMs = try { dateFormat.parse(timestampStr)?.time ?: 0L } catch(e: Exception) { 0L }
                             Candle(
-                                timestamp = list[0].toString(),
+                                timestamp = timestampStr,
                                 open = (list[1] as Number).toDouble(),
                                 high = (list[2] as Number).toDouble(),
                                 low = (list[3] as Number).toDouble(),
                                 close = (list[4] as Number).toDouble(),
-                                volume = (list[5] as Number).toLong()
+                                volume = (list[5] as Number).toLong(),
+                                timeMs = timeMs
                             )
                         } catch (e: Exception) {
                             null
                         }
                     }
+                    
+                    // Sort the list so the newest candle (e.g. 23rd July 3:30 PM) is at the very beginning (Index 0),
+                    // and the oldest candle (e.g. 22nd July 9:15 AM) is at the end.
+                    // This perfectly matches the right-to-left canvas rendering logic.
+                    resultList = resultList?.sortedByDescending { it.timeMs }
+                    
                     if (resultList == null) errorMsg = "Parsed chart data is null"
                     return@withContext Pair(resultList, errorMsg)
                 } else {
@@ -93,5 +107,6 @@ data class Candle(
     val high: Double,
     val low: Double,
     val close: Double,
-    val volume: Long
+    val volume: Long,
+    val timeMs: Long = 0L
 )
