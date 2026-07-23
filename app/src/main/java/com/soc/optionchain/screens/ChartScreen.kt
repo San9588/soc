@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -217,6 +218,35 @@ fun CandlestickChart(
 
         fun getY(price: Double): Float {
             return size.height - ((price.toFloat() - minPrice) / priceRange) * size.height
+        }
+
+        // Draw grid lines
+        val numVerticalLines = 5
+        for (i in 0..numVerticalLines) {
+            val y = i * (size.height / numVerticalLines)
+            drawLine(
+                color = Color.DarkGray.copy(alpha = 0.5f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1f
+            )
+            
+            // Draw price labels on the right edge
+            if (i < numVerticalLines) { // Skip bottom-most label to avoid overlap
+                val priceLabel = maxPrice - (i * (priceRange / numVerticalLines))
+                val labelText = String.format("%.1f", priceLabel)
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.LTGRAY
+                    textSize = 30f
+                }.let { paint ->
+                    drawContext.canvas.nativeCanvas.drawText(
+                        labelText,
+                        size.width - 120f,
+                        y - 10f,
+                        paint
+                    )
+                }
+            }
         }
 
         visibleCandles.forEachIndexed { i, candle ->
