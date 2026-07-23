@@ -214,6 +214,7 @@ fun ChartTopBar(
 }
 
 @Composable
+@Composable
 fun InteractiveCandlestickChart(
     candles: List<Candle>,
     bullishColorHex: String,
@@ -230,8 +231,8 @@ fun InteractiveCandlestickChart(
     
     var crosshairPos by remember { mutableStateOf<Offset?>(null) }
     
-    val baseCandleWidth = 20f
-    val spacing = 4f
+    val baseCandleWidth = 14f
+    val spacing = 2f
     val rightAxisWidth = 140f
 
     val bullishColor = try { Color(android.graphics.Color.parseColor(bullishColorHex)) } catch(e: Exception) { Color.Green }
@@ -240,28 +241,28 @@ fun InteractiveCandlestickChart(
     
     val textPaint = remember {
         android.graphics.Paint().apply {
-            color = android.graphics.Color.LTGRAY
-            textSize = 28f
+            color = android.graphics.Color.parseColor("#787B86")
+            textSize = 26f
             isAntiAlias = true
         }
     }
     
     val tagTextPaint = remember {
-        android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = 28f; isAntiAlias = true }
+        android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = 26f; isAntiAlias = true }
     }
 
     Canvas(
         modifier = modifier
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    if (zoom != 1f) {
-                        scaleX = max(0.2f, min(scaleX * zoom, 5f))
-                    }
-                    offsetX += pan.x
-                    if (offsetX < 0f) offsetX = 0f
-                    
-                    if (kotlin.math.abs(pan.y) > kotlin.math.abs(pan.x) * 2) {
-                        scaleY = max(0.5f, min(scaleY * (1f + pan.y * 0.005f), 3f))
+                detectTransformGestures { centroid, pan, zoom, _ ->
+                    if (centroid.x > size.width - rightAxisWidth) {
+                        scaleY = max(0.1f, min(scaleY * (1f - pan.y * 0.005f), 10f))
+                    } else {
+                        if (zoom != 1f) {
+                            scaleX = max(0.1f, min(scaleX * zoom, 10f))
+                        }
+                        offsetX += pan.x
+                        if (offsetX < 0f) offsetX = 0f
                     }
                 }
             }
@@ -311,17 +312,31 @@ fun InteractiveCandlestickChart(
         }
 
         if (showHGrid) {
-            val hLines = 6
-            for (i in 0..hLines) {
-                val y = i * (size.height / hLines)
+            val roughInterval = priceRange / 8.0
+            val magnitude = kotlin.math.pow(10.0, kotlin.math.floor(kotlin.math.log10(roughInterval)))
+            val normalized = roughInterval / magnitude
+            val niceNormalized = when {
+                normalized < 1.5 -> 1.0
+                normalized < 3.5 -> 2.0
+                normalized < 7.5 -> 5.0
+                else -> 10.0
+            }
+            val interval = niceNormalized * magnitude
+
+            val firstGridPrice = kotlin.math.ceil(minPrice / interval) * interval
+            var currentGridPrice = firstGridPrice
+            while (currentGridPrice <= maxPrice) {
+                val y = getY(currentGridPrice)
                 drawLine(gridColor, Offset(0f, y), Offset(drawingAreaWidth, y), strokeWidth = 1f)
-                val priceLabel = getPriceFromY(y)
+                
+                val label = if (interval < 1.0) String.format("%.2f", currentGridPrice) else String.format("%.1f", currentGridPrice)
                 drawContext.canvas.nativeCanvas.drawText(
-                    String.format("%.1f", priceLabel),
-                    size.width - rightAxisWidth + 10f,
-                    y + 10f,
+                    label,
+                    drawingAreaWidth + 10f,
+                    y - ((textPaint.descent() + textPaint.ascent()) / 2),
                     textPaint
                 )
+                currentGridPrice += interval
             }
         }
         
@@ -360,22 +375,21 @@ fun InteractiveCandlestickChart(
             val priceAtCrosshair = getPriceFromY(chY)
             val tagText = String.format("%.2f", priceAtCrosshair)
             
+            val tagHeight = 44f
             drawRect(
-                color = Color.DarkGray,
-                topLeft = Offset(drawingAreaWidth, chY - 20f),
-                size = Size(rightAxisWidth, 40f)
+                color = Color(0xFF2A2E39),
+                topLeft = Offset(drawingAreaWidth, chY - tagHeight / 2),
+                size = Size(rightAxisWidth, tagHeight)
             )
             drawContext.canvas.nativeCanvas.drawText(
                 tagText,
                 drawingAreaWidth + 10f,
-                chY + 10f,
+                chY - ((tagTextPaint.descent() + tagTextPaint.ascent()) / 2),
                 tagTextPaint
             )
         }
     }
 }
-
-@Composable
 fun SettingsPanel(
     showVGrid: Boolean, onShowVGridChange: (Boolean) -> Unit,
     showHGrid: Boolean, onShowHGridChange: (Boolean) -> Unit,
