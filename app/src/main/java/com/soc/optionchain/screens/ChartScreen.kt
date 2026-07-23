@@ -333,10 +333,10 @@ fun InteractiveCandlestickChart(
             }
             val interval = niceNormalized * magnitude
 
-            val firstGridPrice = kotlin.math.ceil(minPrice.toDouble() / interval) * interval
+            val firstGridPrice = kotlin.math.ceil((minPrice.toDouble() / interval).toDouble()) * interval
             var currentGridPrice = firstGridPrice
             while (currentGridPrice <= maxPrice.toDouble()) {
-                val y = getY(currentGridPrice)
+                val y = getY(currentGridPrice.toFloat().toDouble())
                 drawLine(gridColor, Offset(0f, y), Offset(drawingAreaWidth, y), strokeWidth = 1f)
                 
                 val label = if (interval < 1.0) String.format("%.2f", currentGridPrice) else String.format("%.1f", currentGridPrice)
@@ -346,7 +346,7 @@ fun InteractiveCandlestickChart(
                     y - ((textPaint.descent() + textPaint.ascent()) / 2),
                     textPaint
                 )
-                currentGridPrice += interval
+                currentGridPrice = currentGridPrice + interval
             }
         }
         
